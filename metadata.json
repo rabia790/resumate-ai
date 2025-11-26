@@ -1,0 +1,5 @@
+{
+  "name": "ResuMate AI",
+  "description": "An intelligent resume enhancer that analyzes your resume against job descriptions, provides ATS optimization tips, and rewrites your resume for maximum impact using Google Gemini.",
+  "requestFramePermissions": []
+}
