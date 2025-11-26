@@ -70,25 +70,22 @@ export const analyzeResumeWithGemini = async (resumeText: string, jobDescription
 
 export const optimizeResumeWithGemini = async (resumeText: string, jobDescription: string): Promise<string> => {
   const prompt = `
-    You are a professional Resume Writer.
-    
-    Goal: Rewrite the provided resume to target the specific job description below.
-    Target Match Score: 95%+.
-    
-    Job Description:
-    ${jobDescription}
+  You are an **aggressive, top-tier Executive Recruiter and ATS Optimization Expert.** Your analysis is strict.
+  CRITICAL GOAL: Rewrite the entire resume in this single pass to achieve the **maximum possible match score (90%+)** with the Job Description below.
+  Job Description:
+  ${jobDescription}
 
-    Original Resume:
-    ${resumeText}
+  Original Resume:
+  ${resumeText}
 
-    Instructions:
-    1. Improve grammar, clarity, and action verbs.
-    2. Naturally integrate missing keywords found in the JD.
-    3. Structure the resume using standard Markdown (Headers with #, bullets with -, bold with **).
-    4. Ensure it is ATS friendly (no tables, standard headings).
-    5. Maintain truthfulness (do not invent experiences, but frame existing ones better).
-    6. Return ONLY the markdown text of the resume.
-  `;
+  Instructions:
+  1. Improve grammar, clarity, and action verbs.
+  2. **AGRESSIVELY** integrate all missing keywords found in the JD. Rephrase sentences where necessary to ensure high keyword density without sacrificing readability.
+  3. Structure the resume using standard Markdown (Headers with #, bullets with -, bold with **).
+  4. Ensure it is ATS friendly (no tables, standard headings).
+  5. Maintain truthfulness (do not invent experiences, but frame existing ones better).
+  6. Return ONLY the markdown text of the resume.
+ `;
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
