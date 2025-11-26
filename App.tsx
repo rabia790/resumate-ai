@@ -311,15 +311,28 @@ const App: React.FC = () => {
                       </div>
                   </div>
                   
-                  <div className="mt-8 flex justify-end">
-                     <button
+                <div className="mt-8 flex justify-end">
+                    <button
                         onClick={handleOptimize}
-                        className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 shadow-sm transition-all"
+                        
+                        disabled={appState === AppState.OPTIMIZING} 
+                        className={`flex items-center justify-center gap-2 text-white px-6 py-3 rounded-lg shadow-sm transition-all font-medium 
+                            ${appState === AppState.OPTIMIZING ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                     >
-                        <Wand2 className="w-5 h-5" />
-                        Apply AI Optimization
+                        {appState === AppState.OPTIMIZING ? (
+                            <div className="flex items-center gap-2">
+                                <RefreshCw className="w-5 h-5 animate-spin" /> 
+                                <span>Applying Optimization...</span>
+                            </div>
+                        ) : (
+                            
+                            <>
+                                <Wand2 className="w-5 h-5" />
+                                <span>Apply AI Optimization</span>
+                            </>
+                        )}
                     </button>
-                  </div>
+                </div>
                 </div>
               ) : null}
             </div>
