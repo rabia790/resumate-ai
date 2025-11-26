@@ -384,7 +384,7 @@ const App: React.FC = () => {
       
       <footer className="bg-white border-t border-slate-200 py-6 mt-auto">
         <div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm">
-            &copy; {new Date().getFullYear()} ResuMate AI. Powered by Google Gemini.
+            &copy; {new Date().getFullYear()} ResuMate AI. Powered CygniSoft Inc.
         </div>
       </footer>
     </div>
