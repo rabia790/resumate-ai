@@ -53,6 +53,8 @@ const App: React.FC = () => {
       setActiveTab(Tab.ANALYSIS);
       setAppState(AppState.VIEW_ANALYSIS);
     } catch (err) {
+      console.error("ACTUAL ERROR DETAILS:", err); 
+      console.error("Error Message:", err.message);  
       setErrorMsg("Failed to analyze resume. Please try again.");
       setAppState(AppState.ERROR);
     }
