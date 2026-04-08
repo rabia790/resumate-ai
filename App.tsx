@@ -19,37 +19,34 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.INPUT);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-React.useEffect(() => {
+
+  React.useEffect(() => {
   const handleWPMessage = async (event: MessageEvent) => {
-    // SECURITY: Only trust your WordPress domain
-    if (event.origin !== "https://staging-0446-cygnisoft-zadxc.wpcomstaging.com/") return;
+    // 1. LOG EVERYTHING to see what domain is actually arriving
+    console.log("📩 RECEIVED SIGNAL FROM:", event.origin);
+    console.log("📦 DATA TYPE:", event.data.type);
+
+    // 2. TEMPORARILY ALLOW ALL (For testing only - change back after it works)
+    // if (event.origin !== "https://staging-0446-cygnisoft-zadxc.wpcomstaging.com") return;
 
     if (event.data.type === 'START_ANALYSIS') {
-      console.log("📥 Received Data from WordPress");
-      
       const { resumeText, jobDesc } = event.data;
-
-      // 1. Fill the React UI automatically
+      
       setJobDescription(jobDesc);
       setResumeText(resumeText);
       setAppState(AppState.ANALYZING);
 
       try {
-        // 2. Run your Gemini Analysis
         const result = await analyzeResumeWithGemini(resumeText, jobDesc);
-        
         setAnalysisResult(result);
         setAppState(AppState.VIEW_ANALYSIS);
         setActiveTab(Tab.ANALYSIS);
 
-        // 3. SHOUT THE SCORE BACK TO WORDPRESS
+        // Send back to the parent
         window.parent.postMessage({
           type: 'SCORE_RESULT',
           percentage: result.matchScore 
-        }, event.origin);
-        
-        console.log("📤 Sent Score back to WordPress:", result.matchScore);
-
+        }, "*"); // Using "*" temporarily to ensure it gets back
       } catch (err) {
         console.error("❌ Analysis failed:", err);
       }
@@ -59,6 +56,7 @@ React.useEffect(() => {
   window.addEventListener("message", handleWPMessage);
   return () => window.removeEventListener("message", handleWPMessage);
 }, []);
+
 
   // Handlers
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
