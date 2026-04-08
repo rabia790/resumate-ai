@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Upload, FileText, CheckCircle, AlertCircle, Download, Wand2, RefreshCw, Briefcase, FileType } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -19,6 +19,46 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.INPUT);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+React.useEffect(() => {
+  const handleWPMessage = async (event: MessageEvent) => {
+    // SECURITY: Only trust your WordPress domain
+    if (event.origin !== "https://staging-0446-cygnisoft-zadxc.wpcomstaging.com/") return;
+
+    if (event.data.type === 'START_ANALYSIS') {
+      console.log("📥 Received Data from WordPress");
+      
+      const { resumeText, jobDesc } = event.data;
+
+      // 1. Fill the React UI automatically
+      setJobDescription(jobDesc);
+      setResumeText(resumeText);
+      setAppState(AppState.ANALYZING);
+
+      try {
+        // 2. Run your Gemini Analysis
+        const result = await analyzeResumeWithGemini(resumeText, jobDesc);
+        
+        setAnalysisResult(result);
+        setAppState(AppState.VIEW_ANALYSIS);
+        setActiveTab(Tab.ANALYSIS);
+
+        // 3. SHOUT THE SCORE BACK TO WORDPRESS
+        window.parent.postMessage({
+          type: 'SCORE_RESULT',
+          percentage: result.matchScore 
+        }, event.origin);
+        
+        console.log("📤 Sent Score back to WordPress:", result.matchScore);
+
+      } catch (err) {
+        console.error("❌ Analysis failed:", err);
+      }
+    }
+  };
+
+  window.addEventListener("message", handleWPMessage);
+  return () => window.removeEventListener("message", handleWPMessage);
+}, []);
 
   // Handlers
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
