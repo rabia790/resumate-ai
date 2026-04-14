@@ -20,68 +20,57 @@ const App: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-  const handleWPMessage = async (event: MessageEvent) => {
-    // 1. LOG EVERYTHING to see what domain is actually arriving
-    console.log("📩 RECEIVED SIGNAL FROM:", event.origin);
-    console.log("📦 DATA TYPE:", event.data.type);
 
-    // 2. TEMPORARILY ALLOW ALL (For testing only - change back after it works)
-    // if (event.origin !== "https://staging-0446-cygnisoft-zadxc.wpcomstaging.com") return;
+// Inside your App component useEffect
+useEffect(() => {
+  const handleWPMessage = async (event: MessageEvent) => {
+    if (!event.data.type) return;
+
+    // Helper to turn DataURL (Base64) back into a File-like object
+    const dataURLtoText = async (dataUrl: string) => {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      // Use your existing service to get clean text
+      return await extractTextFromFile(new File([blob], "resume.pdf"));
+    };
 
     if (event.data.type === 'START_ANALYSIS') {
-      const { resumeText, jobDesc } = event.data;
-      
-      setJobDescription(jobDesc);
-      setResumeText(resumeText);
-      setAppState(AppState.ANALYZING);
-
       try {
-        const result = await analyzeResumeWithGemini(resumeText, jobDesc);
-        setAnalysisResult(result);
-        setAppState(AppState.VIEW_ANALYSIS);
-        setActiveTab(Tab.ANALYSIS);
-
-        // Send back to the parent
-        window.parent.postMessage({
-          type: 'SCORE_RESULT',
+        const cleanText = await dataURLtoText(event.data.resumeData);
+        const result = await analyzeResumeWithGemini(cleanText, event.data.jobDesc);
+        
+        window.parent.postMessage({ 
+          type: 'SCORE_RESULT', 
           percentage: result.matchScore 
-        }, "*"); // Using "*" temporarily to ensure it gets back
-      } catch (err) {
-        console.error("❌ Analysis failed:", err);
+        }, "*");
+      } catch (err: any) {
+        const isQuota = err.message?.includes("429") || err.message?.includes("quota");
+        window.parent.postMessage({ 
+          type: 'SCORE_RESULT', 
+          error: isQuota ? "AI Daily Limit Reached. Try again tomorrow." : "Analysis failed." 
+        }, "*");
       }
     }
-if (event.data.type === 'START_OPTIMIZATION') {
-    const { resumeText, jobDesc } = event.data;
-    setJobDescription(jobDesc);
-    setResumeText(resumeText);
-    setAppState(AppState.OPTIMIZING);
-    setActiveTab(Tab.OPTIMIZED);
 
-    try {
-        const result = await optimizeResumeWithGemini(resumeText, jobDesc);
-        setOptimizedResume(result);
-        setAppState(AppState.VIEW_OPTIMIZED);
+    if (event.data.type === 'START_OPTIMIZATION') {
+      try {
+        const cleanText = await dataURLtoText(event.data.resumeData);
+        const result = await optimizeResumeWithGemini(cleanText, event.data.jobDesc);
         
-        // --- FIX IS HERE ---
-        // You must send the "result" back to WordPress
+        // Return the plain text result
         window.parent.postMessage({ 
-            type: 'OPTIMIZE_COMPLETE',
-            optimizedText: result // Send the actual text!
-        }, "*"); 
-    } catch (err) {
-        console.error("❌ Optimization failed:", err);
-        setAppState(AppState.ERROR);
+          type: 'OPTIMIZE_COMPLETE', 
+          optimizedData: result 
+        }, "*");
+      } catch (err) {
+         window.parent.postMessage({ type: 'SCORE_RESULT', error: "Optimization failed." }, "*");
+      }
     }
-}
-
   };
 
   window.addEventListener("message", handleWPMessage);
   return () => window.removeEventListener("message", handleWPMessage);
 }, []);
-
-
   // Handlers
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
