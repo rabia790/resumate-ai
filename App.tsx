@@ -51,8 +51,7 @@ const App: React.FC = () => {
         console.error("❌ Analysis failed:", err);
       }
     }
-
-    if (event.data.type === 'START_OPTIMIZATION') {
+if (event.data.type === 'START_OPTIMIZATION') {
     const { resumeText, jobDesc } = event.data;
     setJobDescription(jobDesc);
     setResumeText(resumeText);
@@ -64,8 +63,12 @@ const App: React.FC = () => {
         setOptimizedResume(result);
         setAppState(AppState.VIEW_OPTIMIZED);
         
-        // Optional: Send a success signal back to WP
-        window.parent.postMessage({ type: 'OPTIMIZE_COMPLETE' }, "*");
+        // --- FIX IS HERE ---
+        // You must send the "result" back to WordPress
+        window.parent.postMessage({ 
+            type: 'OPTIMIZE_COMPLETE',
+            optimizedText: result // Send the actual text!
+        }, "*"); 
     } catch (err) {
         console.error("❌ Optimization failed:", err);
         setAppState(AppState.ERROR);
