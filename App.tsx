@@ -51,6 +51,27 @@ const App: React.FC = () => {
         console.error("❌ Analysis failed:", err);
       }
     }
+
+    if (event.data.type === 'START_OPTIMIZATION') {
+    const { resumeText, jobDesc } = event.data;
+    setJobDescription(jobDesc);
+    setResumeText(resumeText);
+    setAppState(AppState.OPTIMIZING);
+    setActiveTab(Tab.OPTIMIZED);
+
+    try {
+        const result = await optimizeResumeWithGemini(resumeText, jobDesc);
+        setOptimizedResume(result);
+        setAppState(AppState.VIEW_OPTIMIZED);
+        
+        // Optional: Send a success signal back to WP
+        window.parent.postMessage({ type: 'OPTIMIZE_COMPLETE' }, "*");
+    } catch (err) {
+        console.error("❌ Optimization failed:", err);
+        setAppState(AppState.ERROR);
+    }
+}
+
   };
 
   window.addEventListener("message", handleWPMessage);
