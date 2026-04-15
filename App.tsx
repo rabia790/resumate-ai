@@ -21,62 +21,76 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
-// Inside your App component useEffect
 useEffect(() => {
   const handleWPMessage = async (event: MessageEvent) => {
+    // 1. Security & Type Check
     if (!event.data.type) return;
 
-    // Helper to turn DataURL (Base64) back into a File-like object
-    const dataURLtoText = async (dataUrl: string) => {
-     try {
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        
-        // INTEGRITY LOG
-        console.log(`%c 📥 [BRIDGE] Reconstructed Blob: ${blob.size} bytes | Type: ${blob.type}`, 'color: #00ff88; font-weight: bold;');
-        
-        if (blob.size < 100) throw new Error("File too small to be a valid PDF.");
-        return blob;
-      } catch (e) {
-        console.error("❌ Failed to reconstruct PDF from DataURL", e);
-        throw e;
-      }
+    // --- THE HELPER FUNCTION (Must be defined here) ---
+    const dataURLtoBlob = async (dataUrl: string) => {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      console.log(`📥 [BRIDGE] Blob Reconstructed: ${blob.size} bytes`);
+      return blob;
     };
-if (event.data.type === 'START_ANALYSIS') {
+
+    // 2. Handle Analysis
+    if (event.data.type === 'START_ANALYSIS') {
       try {
+        setAppState(AppState.ANALYZING);
+        
+        // Convert DataURL back to a real File object
         const blob = await dataURLtoBlob(event.data.resumeData);
         const file = new File([blob], event.data.fileName || "resume.pdf", { type: "application/pdf" });
-        
-        // Pass the fresh File object to your service
+
+        // Extract and Analyze
         const cleanText = await extractTextFromFile(file);
-        
         const result = await analyzeResumeWithGemini(cleanText, event.data.jobDesc);
         
+        setAnalysisResult(result);
+        setAppState(AppState.VIEW_ANALYSIS);
+
+        // Send score back to WordPress
         window.parent.postMessage({ 
           type: 'SCORE_RESULT', 
           percentage: result.matchScore 
         }, "*");
+
       } catch (err: any) {
-        console.error("Analysis Error:", err);
+        console.error("❌ Analysis Error:", err);
         window.parent.postMessage({ 
           type: 'SCORE_RESULT', 
-          error: "Invalid PDF structure. Please try a different file." 
+          error: "Invalid PDF structure or AI error. Please try again." 
         }, "*");
       }
     }
 
+    // 3. Handle Optimization
     if (event.data.type === 'START_OPTIMIZATION') {
       try {
-        const cleanText = await dataURLtoText(event.data.resumeData);
+        setAppState(AppState.OPTIMIZING);
+        
+        const blob = await dataURLtoBlob(event.data.resumeData);
+        const file = new File([blob], event.data.fileName || "resume.pdf", { type: "application/pdf" });
+        
+        const cleanText = await extractTextFromFile(file);
         const result = await optimizeResumeWithGemini(cleanText, event.data.jobDesc);
         
-        // Return the plain text result
+        setOptimizedResume(result);
+        setAppState(AppState.VIEW_OPTIMIZED);
+
+        // Send optimized text back to WordPress
         window.parent.postMessage({ 
           type: 'OPTIMIZE_COMPLETE', 
           optimizedData: result 
         }, "*");
-      } catch (err) {
-         window.parent.postMessage({ type: 'SCORE_RESULT', error: "Optimization failed." }, "*");
+
+      } catch (err: any) {
+        console.error("❌ Optimization Error:", err);
+        window.parent.postMessage({ 
+          type: 'SCORE_RESULT', 
+          error: "AI Optimization failed." 
+        }, "*");
       }
     }
   };
@@ -84,6 +98,8 @@ if (event.data.type === 'START_ANALYSIS') {
   window.addEventListener("message", handleWPMessage);
   return () => window.removeEventListener("message", handleWPMessage);
 }, []);
+
+
   // Handlers
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
