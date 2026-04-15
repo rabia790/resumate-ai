@@ -23,34 +23,43 @@ const App: React.FC = () => {
 
 useEffect(() => {
   const handleWPMessage = async (event: MessageEvent) => {
-    // 1. Security & Type Check
     if (!event.data.type) return;
 
-    // --- THE HELPER FUNCTION (Must be defined here) ---
-    const dataURLtoBlob = async (dataUrl: string) => {
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      console.log(`📥 [BRIDGE] Blob Reconstructed: ${blob.size} bytes`);
-      return blob;
+    // --- HELPER: Identify and Process incoming data ---
+    const getCleanText = async (data: string, fileName?: string) => {
+      // 1. Check if it's a DataURL (starts with data:application/pdf or data:text/plain)
+      if (data.startsWith('data:')) {
+        console.log("📄 [BRIDGE] Processing binary DataURL...");
+        const res = await fetch(data);
+        const blob = await res.blob();
+        
+        // If it's a PDF, use the extractor
+        if (blob.type.includes('pdf')) {
+          const file = new File([blob], fileName || "resume.pdf", { type: "application/pdf" });
+          return await extractTextFromFile(file);
+        }
+        // If it's a text DataURL, just return the text
+        return await blob.text();
+      }
+
+      // 2. If it's not a DataURL, it's likely raw text from the optimizer
+      console.log("✍️ [BRIDGE] Processing raw text directly...");
+      return data;
     };
 
-    // 2. Handle Analysis
     if (event.data.type === 'START_ANALYSIS') {
       try {
         setAppState(AppState.ANALYZING);
         
-        // Convert DataURL back to a real File object
-        const blob = await dataURLtoBlob(event.data.resumeData);
-        const file = new File([blob], event.data.fileName || "resume.pdf", { type: "application/pdf" });
-
-        // Extract and Analyze
-        const cleanText = await extractTextFromFile(file);
-        const result = await analyzeResumeWithGemini(cleanText, event.data.jobDesc);
+        // Use our smart helper to get the text regardless of format
+        const textToAnalyze = await getCleanText(event.data.resumeData, event.data.fileName);
+        
+        console.log("🔍 [BRIDGE] Sending text to Gemini for analysis...");
+        const result = await analyzeResumeWithGemini(textToAnalyze, event.data.jobDesc);
         
         setAnalysisResult(result);
         setAppState(AppState.VIEW_ANALYSIS);
 
-        // Send score back to WordPress
         window.parent.postMessage({ 
           type: 'SCORE_RESULT', 
           percentage: result.matchScore 
@@ -60,37 +69,29 @@ useEffect(() => {
         console.error("❌ Analysis Error:", err);
         window.parent.postMessage({ 
           type: 'SCORE_RESULT', 
-          error: "Invalid PDF structure or AI error. Please try again." 
+          error: "Could not process file. If it's a PDF, ensure it's not password protected." 
         }, "*");
       }
     }
 
-    // 3. Handle Optimization
     if (event.data.type === 'START_OPTIMIZATION') {
       try {
         setAppState(AppState.OPTIMIZING);
+        const textToOptimize = await getCleanText(event.data.resumeData, event.data.fileName);
         
-        const blob = await dataURLtoBlob(event.data.resumeData);
-        const file = new File([blob], event.data.fileName || "resume.pdf", { type: "application/pdf" });
-        
-        const cleanText = await extractTextFromFile(file);
-        const result = await optimizeResumeWithGemini(cleanText, event.data.jobDesc);
+        const result = await optimizeResumeWithGemini(textToOptimize, event.data.jobDesc);
         
         setOptimizedResume(result);
         setAppState(AppState.VIEW_OPTIMIZED);
 
-        // Send optimized text back to WordPress
         window.parent.postMessage({ 
           type: 'OPTIMIZE_COMPLETE', 
-          optimizedData: result 
+          optimizedData: result // Sending raw text back to WP
         }, "*");
 
       } catch (err: any) {
         console.error("❌ Optimization Error:", err);
-        window.parent.postMessage({ 
-          type: 'SCORE_RESULT', 
-          error: "AI Optimization failed." 
-        }, "*");
+        window.parent.postMessage({ type: 'SCORE_RESULT', error: "AI Optimization failed." }, "*");
       }
     }
   };
