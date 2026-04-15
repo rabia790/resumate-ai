@@ -20,30 +20,27 @@ const App: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-
 useEffect(() => {
   const handleWPMessage = async (event: MessageEvent) => {
     if (!event.data.type) return;
 
-    // --- HELPER: Identify and Process incoming data ---
+    // --- SMART HELPER: Handles both PDF Uploads and AI-Generated Text ---
     const getCleanText = async (data: string, fileName?: string) => {
-      // 1. Check if it's a DataURL (starts with data:application/pdf or data:text/plain)
+      // 1. If it's a DataURL (the initial PDF upload)
       if (data.startsWith('data:')) {
-        console.log("📄 [BRIDGE] Processing binary DataURL...");
         const res = await fetch(data);
         const blob = await res.blob();
         
-        // If it's a PDF, use the extractor
+        // If it's a PDF, use the file extractor service
         if (blob.type.includes('pdf')) {
           const file = new File([blob], fileName || "resume.pdf", { type: "application/pdf" });
           return await extractTextFromFile(file);
         }
-        // If it's a text DataURL, just return the text
+        // If it's just a text blob, read it as text
         return await blob.text();
       }
 
-      // 2. If it's not a DataURL, it's likely raw text from the optimizer
-      console.log("✍️ [BRIDGE] Processing raw text directly...");
+      // 2. If it's already raw text (the result from Gemini)
       return data;
     };
 
@@ -51,10 +48,9 @@ useEffect(() => {
       try {
         setAppState(AppState.ANALYZING);
         
-        // Use our smart helper to get the text regardless of format
+        // Use the smart helper to prevent "Invalid PDF Structure" crashes
         const textToAnalyze = await getCleanText(event.data.resumeData, event.data.fileName);
         
-        console.log("🔍 [BRIDGE] Sending text to Gemini for analysis...");
         const result = await analyzeResumeWithGemini(textToAnalyze, event.data.jobDesc);
         
         setAnalysisResult(result);
@@ -64,12 +60,12 @@ useEffect(() => {
           type: 'SCORE_RESULT', 
           percentage: result.matchScore 
         }, "*");
-
       } catch (err: any) {
         console.error("❌ Analysis Error:", err);
+        const isQuota = err.message?.includes("429") || err.message?.includes("quota");
         window.parent.postMessage({ 
           type: 'SCORE_RESULT', 
-          error: "Could not process file. If it's a PDF, ensure it's not password protected." 
+          error: isQuota ? "AI Limit Reached. Try again tomorrow." : "Analysis failed." 
         }, "*");
       }
     }
@@ -84,14 +80,13 @@ useEffect(() => {
         setOptimizedResume(result);
         setAppState(AppState.VIEW_OPTIMIZED);
 
+        // Send the optimized text back to WordPress
         window.parent.postMessage({ 
           type: 'OPTIMIZE_COMPLETE', 
-          optimizedData: result // Sending raw text back to WP
+          optimizedData: result 
         }, "*");
-
-      } catch (err: any) {
-        console.error("❌ Optimization Error:", err);
-        window.parent.postMessage({ type: 'SCORE_RESULT', error: "AI Optimization failed." }, "*");
+      } catch (err) {
+         window.parent.postMessage({ type: 'SCORE_RESULT', error: "Optimization failed." }, "*");
       }
     }
   };
