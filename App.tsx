@@ -28,15 +28,28 @@ useEffect(() => {
 
     // Helper to turn DataURL (Base64) back into a File-like object
     const dataURLtoText = async (dataUrl: string) => {
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      // Use your existing service to get clean text
-      return await extractTextFromFile(new File([blob], "resume.pdf"));
+     try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        
+        // INTEGRITY LOG
+        console.log(`%c 📥 [BRIDGE] Reconstructed Blob: ${blob.size} bytes | Type: ${blob.type}`, 'color: #00ff88; font-weight: bold;');
+        
+        if (blob.size < 100) throw new Error("File too small to be a valid PDF.");
+        return blob;
+      } catch (e) {
+        console.error("❌ Failed to reconstruct PDF from DataURL", e);
+        throw e;
+      }
     };
-
-    if (event.data.type === 'START_ANALYSIS') {
+if (event.data.type === 'START_ANALYSIS') {
       try {
-        const cleanText = await dataURLtoText(event.data.resumeData);
+        const blob = await dataURLtoBlob(event.data.resumeData);
+        const file = new File([blob], event.data.fileName || "resume.pdf", { type: "application/pdf" });
+        
+        // Pass the fresh File object to your service
+        const cleanText = await extractTextFromFile(file);
+        
         const result = await analyzeResumeWithGemini(cleanText, event.data.jobDesc);
         
         window.parent.postMessage({ 
@@ -44,10 +57,10 @@ useEffect(() => {
           percentage: result.matchScore 
         }, "*");
       } catch (err: any) {
-        const isQuota = err.message?.includes("429") || err.message?.includes("quota");
+        console.error("Analysis Error:", err);
         window.parent.postMessage({ 
           type: 'SCORE_RESULT', 
-          error: isQuota ? "AI Daily Limit Reached. Try again tomorrow." : "Analysis failed." 
+          error: "Invalid PDF structure. Please try a different file." 
         }, "*");
       }
     }
