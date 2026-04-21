@@ -74,16 +74,29 @@ useEffect(() => {
       try {
         setAppState(AppState.OPTIMIZING);
         const textToOptimize = await getCleanText(event.data.resumeData, event.data.fileName);
-        
         const result = await optimizeResumeWithGemini(textToOptimize, event.data.jobDesc);
         
         setOptimizedResume(result);
         setAppState(AppState.VIEW_OPTIMIZED);
 
+      const doc = new jsPDF();
+      const lines = doc.splitTextToSize(result, 180);
+      let cursorY = 10;
+      lines.forEach((line) => {
+        if (cursorY + 10 > doc.internal.pageSize.height) {
+          doc.addPage();
+          cursorY = 10;
+        }
+        doc.text(line, 10, cursorY);
+        cursorY += 7;
+      });
+      const pdfDataUri = doc.output('datauristring');
+      
         // Send the optimized text back to WordPress
         window.parent.postMessage({ 
           type: 'OPTIMIZE_COMPLETE', 
-          optimizedData: result 
+          optimizedData: result,
+          pdfFileData: pdfDataUri
         }, "*");
       } catch (err) {
          window.parent.postMessage({ type: 'SCORE_RESULT', error: "Optimization failed." }, "*");
