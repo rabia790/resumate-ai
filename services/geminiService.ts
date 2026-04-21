@@ -42,7 +42,7 @@ const analysisSchema = {
 export const analyzeResumeWithGemini = async (resumeText: string, jobDescription: string): Promise<AnalysisResult> => {
   // 2. SWITCH BACK TO 2.5 (The one that gave 429, not 404)
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite", 
+    model: "gemini-1.5-flash", 
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: analysisSchema,
